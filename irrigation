@@ -1,0 +1,82 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+const int moistureSensor = A0; 
+const int relay = 7; 
+int threshold = 400;  
+unsigned long dryStartTime = 0;
+bool pumpOn = false;
+
+void setup() {
+    pinMode(moistureSensor, INPUT);
+    pinMode(relay, OUTPUT);
+    digitalWrite(relay, HIGH);  
+
+    Serial.begin(9600);
+
+    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        Serial.println(F("SSD1306 allocation failed"));
+        for (;;);
+    }
+    
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(WHITE);
+    display.setCursor(10, 10);
+    display.print("Smart Irrigation");
+    display.display();
+    delay(2000);
+}
+
+void loop() {
+    int moisture = 1024 - analogRead(moistureSensor);
+    float moisturePercent = moisture / 10.24; // Convert to percentage
+    Serial.print("Soil Moisture: ");
+    Serial.print(moisturePercent);
+    Serial.println("%");
+
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(0, 20);
+    display.print("Moisture:");
+    display.setCursor(0, 40);
+    display.print(moisturePercent);
+    display.print("%"); // Add percentage sign
+
+    if (moisture >= threshold) {
+        display.setCursor(90, 20);
+        display.print(":)");  
+    } else {
+        display.setCursor(90, 20);
+        display.print(":(");  
+    }
+    display.display();
+
+    if (moisture < threshold) { 
+        if (dryStartTime == 0) {
+            dryStartTime = millis(); 
+        }
+
+        if (millis() - dryStartTime >= 20000 && !pumpOn) { 
+            digitalWrite(relay, LOW); 
+            pumpOn = true;
+            Serial.println("Pump ON");
+        }
+    } else { 
+        dryStartTime = 0; 
+        if (pumpOn) {
+            digitalWrite(relay, HIGH); 
+            pumpOn = false;
+            Serial.println("Pump OFF");
+        }
+    }
+
+    delay(1000); 
+}
